@@ -1,5 +1,52 @@
+function escapeHtml(text) {
+  return String(text ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function toggleHistoryAccordion(button) {
+  const panel = button.nextElementSibling;
+  if (!panel || !panel.classList.contains("history-accordion-panel")) return;
+  const open = button.getAttribute("aria-expanded") === "true";
+  button.setAttribute("aria-expanded", open ? "false" : "true");
+  panel.hidden = open;
+  button.classList.toggle("is-open", !open);
+}
+
+window.toggleHistoryAccordion = toggleHistoryAccordion;
+
+function groupByStudent(attempts) {
+  const map = new Map();
+  for (const a of attempts) {
+    const key = a.studentEmail || a.studentName || "unknown";
+    if (!map.has(key)) {
+      map.set(key, { studentName: a.studentName || "Student", attempts: [] });
+    }
+    map.get(key).attempts.push(a);
+  }
+  return Array.from(map.entries())
+    .map(([key, row]) => ({ key, ...row }))
+    .sort((a, b) => new Date(b.attempts[0].createdAt) - new Date(a.attempts[0].createdAt));
+}
+
+function groupByVerbTense(attempts) {
+  const map = new Map();
+  for (const a of attempts) {
+    const key = `${a.verb || ""}|${a.tense || ""}`;
+    if (!map.has(key)) {
+      map.set(key, { verb: a.verb, tense: a.tense, attempts: [] });
+    }
+    map.get(key).attempts.push(a);
+  }
+  return Array.from(map.values()).sort(
+    (a, b) => new Date(b.attempts[0].createdAt) - new Date(a.attempts[0].createdAt)
+  );
+}
+
 function getStudentBadges(attempts) {
-  if (!attempts.length) return [{ label: "Starter", tone: "soft", icon: "🌱" }];
+  if (!Array.isArray(attempts) || !attempts.length) return [{ label: "Starter", tone: "soft", icon: "🌱" }];
   const best = Math.max(...attempts.map((a) => a.overallScore || 0));
   const avg = Math.round(attempts.reduce((sum, row) => sum + Number(row.overallScore || 0), 0) / attempts.length);
   const recent3Passed = attempts.slice(0, 3).every((a) => Number(a.overallScore || 0) >= 75);
@@ -12,7 +59,7 @@ function getStudentBadges(attempts) {
 }
 
 function getTeacherBadges(attempts) {
-  if (!attempts.length) return [{ label: "Class Monitor", tone: "soft", icon: "📘" }];
+  if (!Array.isArray(attempts) || !attempts.length) return [{ label: "Class Monitor", tone: "soft", icon: "📘" }];
   const uniqueStudents = new Set(attempts.map((a) => a.studentEmail)).size;
   const highScores = attempts.filter((a) => Number(a.overallScore || 0) >= 85).length;
   const badges = [];
@@ -34,6 +81,7 @@ function renderBadgeBoard(targetId, badges) {
 }
 
 function buildTrendSvg(attempts) {
+  if (!Array.isArray(attempts) || !attempts.length) return "";
   const recent = attempts.slice().reverse().slice(-10);
   const points = recent
     .map((attempt, index) => {
@@ -71,47 +119,110 @@ function buildTrendSvg(attempts) {
   `;
 }
 
-function renderStudentHistory(attempts) {
+function renderStudentHistory(attempts, studentName) {
+  const list = Array.isArray(attempts) ? attempts : [];
   const feed = document.getElementById("student-history-feed");
   const chart = document.getElementById("student-trend-chart");
   if (!feed || !chart) return;
-  renderBadgeBoard("student-badge-board", getStudentBadges(attempts));
+  renderBadgeBoard("student-badge-board", getStudentBadges(list));
 
-  feed.innerHTML = attempts.slice(0, 12).map((attempt) => `
-    <div class="history-item">
-      <div><strong>${attempt.verb}</strong> (${attempt.tense}) - ${attempt.overallScore}%</div>
-      <div>${new Date(attempt.createdAt).toLocaleString()}</div>
-    </div>
-  `).join("") || "<div>No attempts yet.</div>";
+  const name = studentName ? escapeHtml(studentName) : "You";
+  if (!list.length) {
+    feed.innerHTML = `<p class="history-feed-intro">Voice attempts for <strong>${name}</strong></p><div class="history-empty">No attempts yet.</div>`;
+  } else {
+    const groups = groupByVerbTense(list.slice(0, 100));
+    const accordions = groups.map((g) => {
+      const scores = g.attempts.map((x) => Number(x.overallScore || 0));
+      const avg = Math.round(scores.reduce((s, n) => s + n, 0) / scores.length);
+      const verbLabel = escapeHtml(g.verb);
+      const tenseLabel = escapeHtml(g.tense);
+      const rows = g.attempts
+        .map(
+          (attempt) => `
+        <div class="history-item history-item-nested">
+          <div><strong>${escapeHtml(attempt.verb)}</strong> (${escapeHtml(attempt.tense)}) — ${attempt.overallScore}% overall</div>
+          <div class="history-item-sub">Pronunciation ${attempt.pronunciationScore}% · Fluency ${attempt.fluencyScore}% · Accuracy ${attempt.accuracyScore}%</div>
+          ${attempt.feedback ? `<div class="history-item-feedback" style="margin-top:8px; padding:8px; background-color:#f0f8ff; border-radius:3px; white-space:pre-wrap; font-size:0.9em; line-height:1.4;">${escapeHtml(attempt.feedback)}</div>` : ""}
+          <div class="history-item-meta">${new Date(attempt.createdAt).toLocaleString()}</div>
+        </div>`
+        )
+        .join("");
+      return `
+        <div class="history-accordion">
+          <button type="button" class="history-accordion-trigger" aria-expanded="false" onclick="toggleHistoryAccordion(this)">
+            <span class="history-accordion-chevron" aria-hidden="true"></span>
+            <span class="history-accordion-title"><strong>${verbLabel}</strong> <span class="history-muted">(${tenseLabel})</span></span>
+            <span class="history-accordion-meta">${g.attempts.length} ${g.attempts.length === 1 ? "try" : "tries"} · avg ${avg}%</span>
+          </button>
+          <div class="history-accordion-panel" hidden>${rows}</div>
+        </div>`;
+    }).join("");
+    feed.innerHTML = `<p class="history-feed-intro">Voice attempts for <strong>${name}</strong> — tap a verb to expand details.</p><div class="history-accordion-list">${accordions}</div>`;
+  }
 
-  chart.innerHTML = attempts.length ? buildTrendSvg(attempts) : "<div>No trend data yet.</div>";
+  chart.innerHTML = list.length ? buildTrendSvg(list) : "<div>No trend data yet.</div>";
 }
 
 function renderTeacherHistory(attempts) {
+  const list = Array.isArray(attempts) ? attempts : [];
   const feed = document.getElementById("teacher-history-feed");
   const chart = document.getElementById("teacher-trend-chart");
   if (!feed || !chart) return;
-  renderBadgeBoard("teacher-badge-board", getTeacherBadges(attempts));
+  renderBadgeBoard("teacher-badge-board", getTeacherBadges(list));
 
-  feed.innerHTML = attempts.slice(0, 20).map((attempt) => `
-    <div class="history-item">
-      <div><strong>${attempt.studentName}</strong> - ${attempt.verb} (${attempt.tense})</div>
-      <div>Score: ${attempt.overallScore}% | ${new Date(attempt.createdAt).toLocaleString()}</div>
-    </div>
-  `).join("") || "<div>No class attempts yet.</div>";
+  if (!list.length) {
+    feed.innerHTML = `<p class="history-feed-intro">One row per student — expand to see each voice attempt.</p><div class="history-empty">No class attempts yet.</div>`;
+  } else {
+    const groups = groupByStudent(list.slice(0, 200));
+    const accordions = groups.map((g) => {
+      const scores = g.attempts.map((x) => Number(x.overallScore || 0));
+      const avg = Math.round(scores.reduce((s, n) => s + n, 0) / scores.length);
+      const latest = scores[0];
+      const displayName = escapeHtml(g.studentName);
+      const rows = g.attempts
+        .map(
+          (attempt) => `
+        <div class="history-item history-item-nested">
+          <div><strong>${escapeHtml(attempt.verb)}</strong> (${escapeHtml(attempt.tense)})</div>
+          <div>Score: ${attempt.overallScore}% · ${new Date(attempt.createdAt).toLocaleString()}</div>
+          ${attempt.feedback ? `<div class="history-item-feedback" style="margin-top:6px; padding:6px; background-color:#f0f8ff; border-radius:3px; white-space:pre-wrap; font-size:0.85em; line-height:1.4;">${escapeHtml(attempt.feedback)}</div>` : ""}
+        </div>`
+        )
+        .join("");
+      return `
+        <div class="history-accordion">
+          <button type="button" class="history-accordion-trigger" aria-expanded="false" onclick="toggleHistoryAccordion(this)">
+            <span class="history-accordion-chevron" aria-hidden="true"></span>
+            <span class="history-accordion-title"><strong>${displayName}</strong></span>
+            <span class="history-accordion-meta">${g.attempts.length} attempt${g.attempts.length === 1 ? "" : "s"} · avg ${avg}% · latest ${latest}%</span>
+          </button>
+          <div class="history-accordion-panel" hidden>${rows}</div>
+        </div>`;
+    }).join("");
+    feed.innerHTML = `<p class="history-feed-intro">Tap a student to see their attempts (newest students first).</p><div class="history-accordion-list">${accordions}</div>`;
+  }
 
-  chart.innerHTML = attempts.length ? buildTrendSvg(attempts) : "<div>No class trend yet.</div>";
+  chart.innerHTML = list.length ? buildTrendSvg(list) : "<div>No class trend yet.</div>";
 }
 
 async function refreshProgressTracking() {
   const session = await getSession();
   if (!session) return;
-  if (session.role === "student") {
-    const attempts = await getStudentVoiceAttempts();
-    renderStudentHistory(attempts);
-  } else if (session.role === "teacher") {
-    const attempts = await getTeacherVoiceAttempts();
-    renderTeacherHistory(attempts);
+  try {
+    if (session.role === "student") {
+      const attempts = await getStudentVoiceAttempts();
+      renderStudentHistory(attempts, session.name);
+    } else if (session.role === "teacher") {
+      const attempts = await getTeacherVoiceAttempts();
+      renderTeacherHistory(attempts);
+    }
+  } catch (err) {
+    console.error("Voice history could not be loaded:", err);
+    const studentFeed = document.getElementById("student-history-feed");
+    const teacherFeed = document.getElementById("teacher-history-feed");
+    const msg = `<div class="history-empty">Could not load voice history (${err && err.message ? err.message : "network or server error"}). Check that the server is running (npm start) and refresh.</div>`;
+    if (session.role === "student" && studentFeed) studentFeed.innerHTML = msg;
+    if (session.role === "teacher" && teacherFeed) teacherFeed.innerHTML = msg;
   }
 }
 

@@ -16,5 +16,12 @@ window.addEventListener("DOMContentLoaded", async () => {
   } else if (session.role === "student") {
     await initActionVerbLibrary();
     await refreshProgressTracking();
+  } else if (session.role === "admin") {
+    await loadAdminOverview();
+    await adminLoadUsers();
+    await adminLoadConnections();
+    if (typeof adminLoadTeacherConnections === 'function') {
+      await adminLoadTeacherConnections();
+    }
   }
 });

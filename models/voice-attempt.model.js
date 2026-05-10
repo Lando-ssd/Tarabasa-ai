@@ -61,6 +61,11 @@ module.exports = (sequelize) => sequelize.define("VoiceAttempt", {
     type: DataTypes.BOOLEAN,
     allowNull: false,
     defaultValue: false
+  },
+  feedback: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+    defaultValue: null
   }
 }, {
   tableName: "voice_attempts",

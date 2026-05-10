@@ -15,6 +15,14 @@ module.exports = (sequelize) => sequelize.define("Student", {
     allowNull: false,
     defaultValue: "1"
   },
+  studentEmail: {
+    type: DataTypes.STRING,
+    allowNull: true,
+    field: "student_email",
+    validate: {
+      isEmail: true
+    }
+  },
   parentName: {
     type: DataTypes.STRING,
     allowNull: true,
@@ -51,6 +59,11 @@ module.exports = (sequelize) => sequelize.define("Student", {
     type: DataTypes.DATE,
     allowNull: true,
     field: "last_active_at"
+  },
+  teacherId: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    field: "teacher_id"
   }
 }, {
   tableName: "teacher_students",

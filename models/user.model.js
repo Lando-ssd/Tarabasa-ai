@@ -23,7 +23,7 @@ module.exports = (sequelize) => sequelize.define("User", {
     allowNull: false
   },
   role: {
-    type: DataTypes.ENUM("teacher", "student", "parent"),
+    type: DataTypes.ENUM("teacher", "student", "parent", "admin"),
     allowNull: false
   }
 }, {

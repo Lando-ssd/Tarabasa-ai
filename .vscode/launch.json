@@ -1,0 +1,25 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "node",
+      "request": "launch",
+      "name": "TaraBasa: start server",
+      "program": "${workspaceFolder}/server.js",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "serverReadyAction": {
+        "action": "openExternally",
+        "pattern": "Open the app: http://127\\.0\\.0\\.1:([0-9]+)/index\\.html",
+        "uriFormat": "http://127.0.0.1:%s/index.html"
+      }
+    },
+    {
+      "type": "chrome",
+      "request": "launch",
+      "name": "TaraBasa: Chrome (server must be running)",
+      "url": "http://127.0.0.1:8000/index.html",
+      "webRoot": "${workspaceFolder}"
+    }
+  ]
+}

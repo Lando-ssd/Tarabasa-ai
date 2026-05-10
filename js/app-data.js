@@ -1,10 +1,17 @@
 const API_BASE = (() => {
-  const isApiHost =
-    (window.location.hostname === "127.0.0.1" || window.location.hostname === "localhost") &&
-    window.location.port === "8000";
-
-  // If opened from file:// or another dev server port, target the backend explicitly.
-  return isApiHost ? "" : "http://127.0.0.1:8000";
+  if (window.location.protocol === "file:") {
+    return "http://127.0.0.1:8000";
+  }
+  const host = window.location.hostname;
+  const port = window.location.port;
+  const isLocal = host === "127.0.0.1" || host === "localhost";
+  if (!isLocal) return "";
+  // Static dev servers (no API on this port) — TaraBasa API defaults to port 8000.
+  const staticOnlyPorts = new Set(["5500", "5173", "4173"]);
+  if (staticOnlyPorts.has(port)) {
+    return "http://127.0.0.1:8000";
+  }
+  return "";
 })();
 
 async function apiRequest(path, options = {}) {
