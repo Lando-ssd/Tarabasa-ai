@@ -1,16 +1,34 @@
-const API_BASE = "";
+const API_BASE = (() => {
+  const isApiHost =
+    (window.location.hostname === "127.0.0.1" || window.location.hostname === "localhost") &&
+    window.location.port === "8000";
+
+  // If opened from file:// or another dev server port, target the backend explicitly.
+  return isApiHost ? "" : "http://127.0.0.1:8000";
+})();
 
 async function apiRequest(path, options = {}) {
   const session = JSON.parse(localStorage.getItem("tb_session") || "null");
   const incomingHeaders = options.headers || {};
-  const response = await fetch(`${API_BASE}${path}`, {
-    headers: {
-      "Content-Type": "application/json",
-      ...incomingHeaders,
-      ...(session?.email ? { "x-user-email": session.email } : {})
-    },
-    ...options
-  });
+  let response;
+  try {
+    response = await fetch(`${API_BASE}${path}`, {
+      headers: {
+        "Content-Type": "application/json",
+        ...incomingHeaders,
+        ...(session?.email ? { "x-user-email": session.email } : {})
+      },
+      ...options
+    });
+  } catch (error) {
+    if (error instanceof TypeError) {
+      throw new Error(
+        "Cannot connect to the TaraBasa server. Start it first with: npm start"
+      );
+    }
+    throw error;
+  }
+
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
     throw new Error(body.error || "Request failed.");

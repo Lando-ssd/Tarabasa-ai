@@ -52,7 +52,22 @@ async function getUserByHeader(req) {
 }
 
 async function initDb() {
-  await sequelize.sync({ alter: true });
+  const shouldAlterSchema = String(process.env.DB_ALTER || "").toLowerCase() === "true";
+
+  if (shouldAlterSchema) {
+    try {
+      await sequelize.sync({ alter: true });
+    } catch (error) {
+      // SQLite alter can fail if a stale backup table already has duplicate PK values.
+      if (error?.original?.code === "SQLITE_CONSTRAINT") {
+        await sequelize.sync();
+      } else {
+        throw error;
+      }
+    }
+  } else {
+    await sequelize.sync();
+  }
 
   const studentCount = await Student.count();
   if (studentCount === 0) {
