@@ -13,6 +13,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     initTeacherRealtimeDashboard();
   } else if (session.role === "parent") {
     await renderParentDashboard();
+    await parentLoadStudents();
   } else if (session.role === "student") {
     await initActionVerbLibrary();
     await refreshProgressTracking();
@@ -22,6 +23,12 @@ window.addEventListener("DOMContentLoaded", async () => {
     await adminLoadConnections();
     if (typeof adminLoadTeacherConnections === 'function') {
       await adminLoadTeacherConnections();
+    }
+    if (typeof adminLoadPendingStudents === 'function') {
+      await adminLoadPendingStudents();
+    }
+    if (typeof adminLoadDeletionRequests === 'function') {
+      await adminLoadDeletionRequests();
     }
   }
 });

@@ -252,4 +252,160 @@ async function renderParentDashboard() {
   }
 }
 
+// ─── Parent Student Creation ────────────────────────────────────────────────
+function toggleParentCreateStudent() {
+  const form = document.getElementById("parent-create-student-form");
+  if (form) {
+    form.style.display = form.style.display === "none" ? "block" : "none";
+    if (form.style.display === "block") {
+      document.getElementById("parent-student-name").focus();
+    }
+  }
+}
+
+async function parentCreateStudent() {
+  const name = document.getElementById("parent-student-name").value.trim();
+  const grade = document.getElementById("parent-student-grade").value || "1";
+  const studentEmail = document.getElementById("parent-student-email").value.trim().toLowerCase();
+  const password = document.getElementById("parent-student-password").value;
+  
+  const errorDiv = document.getElementById("parent-create-error");
+  const successDiv = document.getElementById("parent-create-success");
+  
+  errorDiv.style.display = "none";
+  successDiv.style.display = "none";
+  
+  if (!name || !studentEmail || !password) {
+    errorDiv.textContent = "Please fill in all required fields.";
+    errorDiv.style.display = "block";
+    return;
+  }
+
+  if (!studentEmail.includes("@")) {
+    errorDiv.textContent = "Please enter a valid email address.";
+    errorDiv.style.display = "block";
+    return;
+  }
+
+  if (password.length < 6) {
+    errorDiv.textContent = "Password must be at least 6 characters.";
+    errorDiv.style.display = "block";
+    return;
+  }
+
+  try {
+    const response = await createParentStudent({ name, grade, studentEmail, password });
+    successDiv.textContent = `✅ Student "${name}" created and sent for admin approval!`;
+    successDiv.style.display = "block";
+    
+    // Clear form
+    document.getElementById("parent-student-name").value = "";
+    document.getElementById("parent-student-email").value = "";
+    document.getElementById("parent-student-grade").value = "1";
+    document.getElementById("parent-student-password").value = "";
+    
+    // Reload list after 1.5 seconds
+    setTimeout(() => {
+      parentLoadStudents();
+      toggleParentCreateStudent();
+    }, 1500);
+  } catch (err) {
+    errorDiv.textContent = err.message || "Failed to create student.";
+    errorDiv.style.display = "block";
+  }
+}
+
+async function parentLoadStudents() {
+  const listEl = document.getElementById("parent-students-list");
+  if (!listEl) return;
+
+  try {
+    const students = await getParentStudents();
+    
+    if (!students || students.length === 0) {
+      listEl.innerHTML = `
+        <div style="text-align:center; padding:24px; color:#888;">
+          <div style="font-size:1.5em; margin-bottom:8px;">📚</div>
+          <div>No students created yet.</div>
+        </div>`;
+      return;
+    }
+
+    listEl.innerHTML = students.map(student => {
+      const status = student.approvedByAdmin ? "Approved ✅" : "Pending ⏳";
+      const statusColor = student.approvedByAdmin ? "#4CAF50" : "#FF9800";
+      const bgColor = student.approvedByAdmin ? "#e8f5e9" : "#fff3e0";
+      
+      return `
+        <div style="
+          background:${bgColor};
+          border:1px solid #e0e0e0;
+          border-left:4px solid ${statusColor};
+          border-radius:8px;
+          padding:12px;
+          margin-bottom:10px;
+          display:grid;
+          grid-template-columns:1fr auto;
+          gap:12px;
+          align-items:center;
+        ">
+          <div>
+            <div style="font-weight:600; color:#333; margin-bottom:4px;">${student.name}</div>
+            <div style="font-size:0.85em; color:#666;">
+              Grade ${student.grade} • Email: ${student.studentEmail}
+            </div>
+            <div style="font-size:0.85em; color:#999; margin-top:4px;">
+              Created: ${formatDate(student.createdAt)}
+            </div>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:6px; min-width:140px;">
+            <div style="
+              padding:6px 12px;
+              background:${statusColor};
+              color:#fff;
+              border-radius:4px;
+              font-weight:600;
+              font-size:0.85em;
+              text-align:center;
+            ">${status}</div>
+            ${student.approvedByAdmin && !student.deletionRequestedAt ? `
+              <button class="btn btn-warning" style="font-size:0.75em; padding:4px 8px;" onclick="parentRequestChildDeletion(${student.id}, '${student.name}')">🗑️ Delete</button>
+            ` : student.deletionRequestedAt ? `
+              <div style="
+                padding:4px 8px;
+                background:#FFF9C4;
+                color:#F57F17;
+                border-radius:4px;
+                font-weight:600;
+                font-size:0.8em;
+                text-align:center;
+              ">⏳ Deletion Pending</div>
+            ` : ''}
+          </div>
+        </div>
+      `;
+    }).join("");
+  } catch (err) {
+    listEl.innerHTML = `<div style="color:#c62828; padding:12px;">Error loading students: ${err.message}</div>`;
+  }
+}
+
+async function parentRequestChildDeletion(studentId, studentName) {
+  if (!confirm(`Request deletion of "${studentName}"'s account? This requires admin approval.`)) {
+    return;
+  }
+
+  try {
+    await requestStudentDeletion(studentId);
+    alert(`✅ Deletion request submitted for "${studentName}". Awaiting admin approval.`);
+    await parentLoadStudents();
+  } catch (err) {
+    alert("❌ Error: " + (err.message || "Could not submit deletion request."));
+  }
+}
+
 window.renderParentDashboard = renderParentDashboard;
+window.toggleParentCreateStudent = toggleParentCreateStudent;
+window.parentCreateStudent = parentCreateStudent;
+window.parentLoadStudents = parentLoadStudents;
+window.parentRequestChildDeletion = parentRequestChildDeletion;

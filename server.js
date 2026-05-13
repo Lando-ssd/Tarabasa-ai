@@ -22,7 +22,8 @@ function listenOnPort(port) {
     server.once("error", reject);
   });
 }
-const VALID_ROLES = new Set(["teacher", "student", "parent", "admin"]);
+const VALID_ROLES = new Set(["teacher", "parent", "admin"]);
+const SIGNUP_ROLES = new Set(["teacher", "parent"]); // Only these roles can register
 const ACTION_VERBS = [
   "run", "jump", "walk", "read", "write", "sing", "dance", "eat", "drink", "sleep",
   "talk", "listen", "draw", "paint", "build", "play", "clap", "laugh", "smile", "swim",
@@ -104,6 +105,7 @@ async function initDb() {
         parentEmail: "parent.test@example.com",
         score: 86,
         needsHelp: false,
+        approvedByAdmin: true,
         lastActiveAt: new Date()
       },
       {
@@ -114,6 +116,7 @@ async function initDb() {
         parentEmail: "parent.test@example.com",
         score: 62,
         needsHelp: true,
+        approvedByAdmin: true,
         lastActiveAt: new Date(Date.now() - 24 * 60 * 60 * 1000)
       },
       {
@@ -124,6 +127,7 @@ async function initDb() {
         parentEmail: "other.parent@example.com",
         score: 93,
         needsHelp: false,
+        approvedByAdmin: true,
         lastActiveAt: new Date()
       }
     ]);
@@ -155,6 +159,16 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(__dirname));
 
+// Disable caching for API responses to ensure fresh data after create/update/delete
+app.use((req, res, next) => {
+  if (req.path.startsWith("/api/")) {
+    res.set("Cache-Control", "no-cache, no-store, must-revalidate");
+    res.set("Pragma", "no-cache");
+    res.set("Expires", "0");
+  }
+  next();
+});
+
 app.get("/api/session", async (req, res) => {
   const email = String(req.query.email || "").trim().toLowerCase();
   if (!email) {
@@ -162,12 +176,27 @@ app.get("/api/session", async (req, res) => {
   }
 
   try {
-    const user = await User.findOne({
+    // Check User table first (teachers, parents, admins)
+    let user = await User.findOne({
       where: { email },
       attributes: ["name", "email", "role"]
     });
-    if (!user) return res.status(404).json({ error: "Session user not found." });
-    return res.json(user.toJSON());
+    if (user) return res.json(user.toJSON());
+
+    // Check Student table if not found in User table
+    const student = await Student.findOne({
+      where: { studentEmail: email },
+      attributes: ["name", "studentEmail", "approvedByAdmin"]
+    });
+    if (student) {
+      return res.json({
+        name: student.name,
+        email: student.studentEmail,
+        role: "student"
+      });
+    }
+
+    return res.status(404).json({ error: "Session user not found." });
   } catch {
     return res.status(500).json({ error: "Could not load session." });
   }
@@ -182,8 +211,8 @@ app.post("/api/signup", async (req, res) => {
   if (!name || !email || !password || !role) {
     return res.status(400).json({ error: "Please complete all fields." });
   }
-  if (!VALID_ROLES.has(role)) {
-    return res.status(400).json({ error: "Invalid role." });
+  if (!SIGNUP_ROLES.has(role)) {
+    return res.status(400).json({ error: "Only Teachers and Parents can register. Students are created by their parents." });
   }
   if (password.length < 6) {
     return res.status(400).json({ error: "Password must be at least 6 characters." });
@@ -205,20 +234,42 @@ app.post("/api/login", async (req, res) => {
   const password = String(req.body?.password || "");
 
   try {
-    const user = await User.findOne({
+    // Try teacher/parent/admin login
+    let user = await User.findOne({
       where: { email },
       attributes: ["id", "name", "email", "role", "password"]
     });
-    if (!user || !verifyPassword(password, user.password)) {
-      return res.status(401).json({ error: "Invalid email or password." });
+
+    if (user && verifyPassword(password, user.password)) {
+      if (!user.password.includes("$")) {
+        await user.update({ password: hashPassword(password) });
+      }
+      return res.json({ name: user.name, email: user.email, role: user.role });
     }
 
-    if (!user.password.includes("$")) {
-      await user.update({ password: hashPassword(password) });
+    // Try student login
+    const student = await Student.findOne({
+      where: { studentEmail: email },
+      attributes: ["id", "name", "studentEmail", "password", "approvedByAdmin"]
+    });
+
+    if (student) {
+      if (!student.password) {
+        console.error(`Student ${email} has no password set`);
+        return res.status(401).json({ error: "Student account not properly configured. Contact admin." });
+      }
+
+      if (verifyPassword(password, student.password)) {
+        if (!student.approvedByAdmin) {
+          return res.status(401).json({ error: "Your account is pending admin approval. Please wait for confirmation." });
+        }
+        return res.json({ name: student.name, email: student.studentEmail, role: "student" });
+      }
     }
 
-    return res.json({ name: user.name, email: user.email, role: user.role });
-  } catch {
+    return res.status(401).json({ error: "Invalid email or password." });
+  } catch (err) {
+    console.error("Login error:", err.message);
     return res.status(500).json({ error: "Login failed." });
   }
 });
@@ -279,7 +330,7 @@ app.get("/api/teacher-students", async (req, res) => {
     const q = String(req.query.q || "").trim().toLowerCase();
     const grade = String(req.query.grade || "").trim();
     const atRisk = String(req.query.atRisk || "").trim().toLowerCase();
-    const where = { teacherId: authUser.id };
+    const where = { teacherId: authUser.id, approvedByAdmin: true };
     if (q) {
       where[Op.or] = [
         { name: { [Op.like]: `%${q}%` } },
@@ -316,43 +367,78 @@ app.get("/api/teacher-students", async (req, res) => {
   }
 });
 
+// ─── GET AVAILABLE APPROVED STUDENTS (for teacher to add) ───────────────────
+app.get("/api/available-students", async (req, res) => {
+  const authUser = await getUserByHeader(req);
+  if (!authUser || authUser.role !== "teacher") {
+    return res.status(403).json({ error: "Teacher access required." });
+  }
+
+  try {
+    const q = String(req.query.q || "").trim().toLowerCase();
+    const where = { approvedByAdmin: true };
+    
+    // Exclude students already linked to this teacher
+    const existingIds = await Student.findAll({
+      where: { teacherId: authUser.id },
+      attributes: ["id"]
+    });
+    const existingIdList = existingIds.map(s => s.id);
+    
+    if (existingIdList.length > 0) {
+      where.id = { [Op.notIn]: existingIdList };
+    }
+
+    if (q) {
+      where[Op.or] = [
+        { name: { [Op.like]: `%${q}%` } },
+        { parentName: { [Op.like]: `%${q}%` } },
+        { studentEmail: { [Op.like]: `%${q}%` } }
+      ];
+    }
+
+    const students = await Student.findAll({
+      where,
+      attributes: [
+        "id",
+        "name",
+        "grade",
+        "studentEmail",
+        "parentName",
+        "parentEmail",
+        "score"
+      ],
+      order: [["name", "ASC"]]
+    });
+    return res.json(students.map((s) => s.toJSON()));
+  } catch {
+    return res.status(500).json({ error: "Could not load available students." });
+  }
+});
+
 app.post("/api/teacher-students", async (req, res) => {
   const authUser = await getUserByHeader(req);
   if (!authUser || authUser.role !== "teacher") {
     return res.status(403).json({ error: "Teacher access required." });
   }
 
-  const name = String(req.body?.name || "").trim();
-  const grade = String(req.body?.grade || "").trim() || "1";
-  const parentName = String(req.body?.parentName || "").trim();
-  const parentPhone = String(req.body?.parentPhone || "").trim();
-  const parentEmailRaw = String(req.body?.parentEmail || "").trim().toLowerCase();
-  const parentEmail = parentEmailRaw || null;
-  const score = Number(req.body?.score);
-  const scoreInt = Math.round(score);
-  const isActiveToday = Boolean(req.body?.isActiveToday);
-  const lastActiveAt = isActiveToday ? new Date() : null;
-
-  if (!name || Number.isNaN(scoreInt) || scoreInt < 0 || scoreInt > 100) {
-    return res.status(400).json({ error: "Invalid student data." });
+  const studentId = Number(req.body?.studentId);
+  if (!studentId) {
+    return res.status(400).json({ error: "Student ID is required. Students must be approved by admin first." });
   }
 
-  const needsHelp = scoreInt < 75 ? 1 : 0;
   try {
-    const created = await Student.create({
-      name,
-      grade,
-      parentName: parentName || null,
-      parentPhone: parentPhone || null,
-      parentEmail,
-      score: scoreInt,
-      needsHelp: Boolean(needsHelp),
-      lastActiveAt,
-      teacherId: authUser.id
-    });
-    return res.status(201).json(created.toJSON());
+    const student = await Student.findOne({ where: { id: studentId } });
+    if (!student) return res.status(404).json({ error: "Student not found." });
+    if (!student.approvedByAdmin) {
+      return res.status(400).json({ error: "Student must be approved by admin before adding to class." });
+    }
+
+    // Link student to teacher's class
+    await student.update({ teacherId: authUser.id });
+    return res.status(200).json(student.toJSON());
   } catch {
-    return res.status(500).json({ error: "Could not save student." });
+    return res.status(500).json({ error: "Could not add student to class." });
   }
 });
 
@@ -424,9 +510,9 @@ app.post("/api/teacher-students/import-csv", async (req, res) => {
   const lines = csv.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
   if (lines.length < 2) return res.status(400).json({ error: "CSV must include header and rows." });
   const headers = lines[0].split(",").map((h) => h.trim().toLowerCase());
-  const required = ["name", "grade", "parentphone", "parentemail", "score"];
+  const required = ["name", "score"];
   if (!required.every((key) => headers.includes(key))) {
-    return res.status(400).json({ error: "CSV headers must include name, grade, parentPhone, parentEmail, score." });
+    return res.status(400).json({ error: "CSV headers must include name and score." });
   }
 
   const getValue = (parts, key) => {
@@ -435,30 +521,287 @@ app.post("/api/teacher-students/import-csv", async (req, res) => {
   };
 
   const rows = lines.slice(1).map((line) => line.split(","));
-  const createPayload = rows.map((parts) => {
-    const score = Math.round(Number(getValue(parts, "score")));
-    return {
-      name: getValue(parts, "name"),
-      grade: getValue(parts, "grade") || "1",
-      parentName: getValue(parts, "parentname") || null,
-      parentPhone: getValue(parts, "parentphone") || null,
-      parentEmail: getValue(parts, "parentemail") || null,
-      score: Number.isNaN(score) ? 0 : Math.max(0, Math.min(100, score)),
-      needsHelp: Number.isNaN(score) ? true : score < 75,
-      lastActiveAt: new Date(),
-      teacherId: authUser.id
-    };
-  }).filter((row) => row.name);
+  let updated = 0;
 
-  if (!createPayload.length) {
-    return res.status(400).json({ error: "No valid student rows found." });
+  try {
+    for (const parts of rows) {
+      const name = getValue(parts, "name");
+      if (!name) continue;
+      
+      const score = Math.round(Number(getValue(parts, "score")));
+      if (Number.isNaN(score) || score < 0 || score > 100) continue;
+
+      // Find existing student in teacher's class
+      const student = await Student.findOne({
+        where: {
+          name: { [Op.like]: `%${name}%` },
+          teacherId: authUser.id,
+          approvedByAdmin: true
+        }
+      });
+
+      if (student) {
+        await student.update({
+          score,
+          needsHelp: score < 75
+        });
+        updated++;
+      }
+    }
+
+    return res.status(200).json({ updated, message: `Updated scores for ${updated} existing student(s).` });
+  } catch {
+    return res.status(500).json({ error: "Could not update CSV scores." });
+  }
+});
+
+app.get("/api/debug/students", async (req, res) => {
+  try {
+    const students = await Student.findAll({
+      attributes: ["id", "name", "studentEmail", "password", "approvedByAdmin"]
+    });
+    return res.json(students.map(s => ({
+      id: s.id,
+      name: s.name,
+      studentEmail: s.studentEmail,
+      hasPassword: !!s.password,
+      passwordLength: s.password ? s.password.length : 0,
+      approvedByAdmin: s.approvedByAdmin
+    })));
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── PARENT STUDENT CREATION (Pending Status) ───────────────────────────────
+app.post("/api/parent-students", async (req, res) => {
+  const authUser = await getUserByHeader(req);
+  if (!authUser || authUser.role !== "parent") {
+    return res.status(403).json({ error: "Parent access required." });
+  }
+
+  const name = String(req.body?.name || "").trim();
+  const grade = String(req.body?.grade || "").trim() || "1";
+  const studentEmail = String(req.body?.studentEmail || "").trim().toLowerCase() || null;
+  const password = String(req.body?.password || "").trim();
+
+  if (!name) {
+    return res.status(400).json({ error: "Student name is required." });
+  }
+  if (!studentEmail) {
+    return res.status(400).json({ error: "Student email is required." });
+  }
+  if (!password) {
+    return res.status(400).json({ error: "Student password is required." });
   }
 
   try {
-    const created = await Student.bulkCreate(createPayload);
-    return res.status(201).json({ imported: created.length });
+    const existing = await Student.findOne({ where: { studentEmail } });
+    if (existing) return res.status(400).json({ error: "Email already in use." });
+
+    const created = await Student.create({
+      name,
+      grade,
+      studentEmail,
+      password: hashPassword(password),
+      parentEmail: authUser.email,
+      parentName: authUser.name,
+      score: 0,
+      needsHelp: false,
+      approvedByAdmin: false,
+      createdByParentEmail: authUser.email,
+      lastActiveAt: new Date()
+    });
+    return res.status(201).json({ 
+      ...created.toJSON(),
+      message: "Student created pending admin approval."
+    });
   } catch {
-    return res.status(500).json({ error: "Could not import CSV." });
+    return res.status(500).json({ error: "Could not create student." });
+  }
+});
+
+app.get("/api/parent-students", async (req, res) => {
+  const authUser = await getUserByHeader(req);
+  if (!authUser || authUser.role !== "parent") {
+    return res.status(403).json({ error: "Parent access required." });
+  }
+
+  try {
+    const students = await Student.findAll({
+      where: { parentEmail: authUser.email },
+      order: [["id", "DESC"]]
+    });
+    return res.json(students.map((s) => s.toJSON()));
+  } catch {
+    return res.status(500).json({ error: "Could not load students." });
+  }
+});
+
+// ─── ADMIN STUDENT APPROVAL ──────────────────────────────────────────────────
+app.get("/api/admin/pending-students", async (req, res) => {
+  const authUser = await getUserByHeader(req);
+  if (!authUser || authUser.role !== "admin") {
+    return res.status(403).json({ error: "Admin access required." });
+  }
+
+  try {
+    const students = await Student.findAll({
+      where: { approvedByAdmin: false },
+      order: [["id", "ASC"]]
+    });
+    return res.json(students.map((s) => s.toJSON()));
+  } catch {
+    return res.status(500).json({ error: "Could not load pending students." });
+  }
+});
+
+app.post("/api/admin/approve-student/:id", async (req, res) => {
+  const authUser = await getUserByHeader(req);
+  if (!authUser || authUser.role !== "admin") {
+    return res.status(403).json({ error: "Admin access required." });
+  }
+
+  const id = Number(req.params.id);
+  if (!id) return res.status(400).json({ error: "Invalid student id." });
+
+  try {
+    const student = await Student.findOne({ where: { id } });
+    if (!student) return res.status(404).json({ error: "Student not found." });
+
+    await student.update({ approvedByAdmin: true });
+    return res.json({ ...student.toJSON(), message: "Student approved." });
+  } catch {
+    return res.status(500).json({ error: "Could not approve student." });
+  }
+});
+
+app.post("/api/admin/reject-student/:id", async (req, res) => {
+  const authUser = await getUserByHeader(req);
+  if (!authUser || authUser.role !== "admin") {
+    return res.status(403).json({ error: "Admin access required." });
+  }
+
+  const id = Number(req.params.id);
+  if (!id) return res.status(400).json({ error: "Invalid student id." });
+
+  try {
+    const deleted = await Student.destroy({ where: { id } });
+    if (!deleted) return res.status(404).json({ error: "Student not found." });
+    return res.status(204).send();
+  } catch {
+    return res.status(500).json({ error: "Could not reject student." });
+  }
+});
+
+// ─── PARENT STUDENT DELETION REQUEST ──────────────────────────────────────────
+app.post("/api/parent/request-student-deletion/:id", async (req, res) => {
+  const authUser = await getUserByHeader(req);
+  if (!authUser || authUser.role !== "parent") {
+    return res.status(403).json({ error: "Parent access required." });
+  }
+
+  const id = Number(req.params.id);
+  if (!id) return res.status(400).json({ error: "Invalid student id." });
+
+  try {
+    const student = await Student.findOne({ where: { id } });
+    if (!student) return res.status(404).json({ error: "Student not found." });
+    if (student.parentEmail !== authUser.email) {
+      return res.status(403).json({ error: "You can only request deletion for your own children." });
+    }
+
+    await student.update({ deletionRequestedAt: new Date() });
+    return res.json({ 
+      message: "Deletion request submitted. Awaiting admin approval.", 
+      student: student.toJSON() 
+    });
+  } catch {
+    return res.status(500).json({ error: "Could not submit deletion request." });
+  }
+});
+
+// ─── ADMIN STUDENT DELETION REQUESTS ──────────────────────────────────────────
+app.get("/api/admin/deletion-requests", async (req, res) => {
+  const authUser = await getUserByHeader(req);
+  if (!authUser || authUser.role !== "admin") {
+    return res.status(403).json({ error: "Admin access required." });
+  }
+
+  try {
+    const students = await Student.findAll({
+      where: { deletionRequestedAt: { [Op.not]: null } },
+      order: [["deletionRequestedAt", "DESC"]]
+    });
+    return res.json(students.map((s) => s.toJSON()));
+  } catch {
+    return res.status(500).json({ error: "Could not load deletion requests." });
+  }
+});
+
+// ─── ADMIN APPROVE STUDENT DELETION ────────────────────────────────────────────
+app.post("/api/admin/approve-deletion/:id", async (req, res) => {
+  const authUser = await getUserByHeader(req);
+  if (!authUser || authUser.role !== "admin") {
+    return res.status(403).json({ error: "Admin access required." });
+  }
+
+  const id = Number(req.params.id);
+  if (!id) return res.status(400).json({ error: "Invalid student id." });
+
+  try {
+    const student = await Student.findOne({ where: { id } });
+    if (!student) return res.status(404).json({ error: "Student not found." });
+    if (!student.deletionRequestedAt) {
+      return res.status(400).json({ error: "No deletion request for this student." });
+    }
+
+    // Delete all related records before deleting the student
+    try {
+      await VoiceAttempt.destroy({ where: { studentId: id } });
+    } catch (e) {
+      console.error("Error deleting voice attempts:", e.message);
+    }
+    try {
+      await Score.destroy({ where: { studentId: id } });
+    } catch (e) {
+      console.error("Error deleting scores:", e.message);
+    }
+    try {
+      await VerbActivity.destroy({ where: { studentId: id } });
+    } catch (e) {
+      console.error("Error deleting verb activities:", e.message);
+    }
+    
+    await Student.destroy({ where: { id } });
+    return res.json({ message: "Student account deleted successfully." });
+  } catch (err) {
+    console.error("Error approving deletion:", err.message);
+    return res.status(500).json({ error: "Could not approve deletion: " + err.message });
+  }
+});
+
+// ─── ADMIN REJECT STUDENT DELETION ─────────────────────────────────────────────
+app.post("/api/admin/reject-deletion/:id", async (req, res) => {
+  const authUser = await getUserByHeader(req);
+  if (!authUser || authUser.role !== "admin") {
+    return res.status(403).json({ error: "Admin access required." });
+  }
+
+  const id = Number(req.params.id);
+  if (!id) return res.status(400).json({ error: "Invalid student id." });
+
+  try {
+    const student = await Student.findOne({ where: { id } });
+    if (!student) return res.status(404).json({ error: "Student not found." });
+
+    await student.update({ deletionRequestedAt: null });
+    return res.json({ 
+      message: "Deletion request rejected. Student account retained.", 
+      student: student.toJSON() 
+    });
+  } catch {
+    return res.status(500).json({ error: "Could not reject deletion request." });
   }
 });
 
@@ -646,9 +989,9 @@ app.get("/api/action-verbs", async (_req, res) => {
 });
 
 app.post("/api/voice-attempts", async (req, res) => {
-  const authUser = await getUserByHeader(req);
-  if (!authUser || authUser.role !== "student") {
-    return res.status(403).json({ error: "Student access required." });
+  const email = String(req.headers["x-user-email"] || "").trim().toLowerCase();
+  if (!email) {
+    return res.status(403).json({ error: "Authentication required." });
   }
 
   const verb = String(req.body?.verb || "").trim().toLowerCase();
@@ -666,20 +1009,20 @@ app.post("/api/voice-attempts", async (req, res) => {
   }
 
   try {
-    const studentMatch = await Student.findOne({
-      where: {
-        [Op.or]: [
-          { parentEmail: authUser.email },
-          { name: authUser.name }
-        ]
-      },
-      attributes: ["id", "score"]
+    // Find the student to get their name and id
+    const student = await Student.findOne({
+      where: { studentEmail: email },
+      attributes: ["id", "name", "score"]
     });
 
+    if (!student) {
+      return res.status(403).json({ error: "Student not found." });
+    }
+
     const created = await VoiceAttempt.create({
-      studentEmail: authUser.email,
-      studentName: authUser.name,
-      studentId: studentMatch?.id || null,
+      studentEmail: email,
+      studentName: student.name,
+      studentId: student.id,
       verb,
       tense,
       transcript,
@@ -692,20 +1035,30 @@ app.post("/api/voice-attempts", async (req, res) => {
     });
 
     return res.status(201).json(created.toJSON());
-  } catch {
+  } catch (err) {
+    console.error("Error saving voice attempt:", err);
     return res.status(500).json({ error: "Could not save voice attempt." });
   }
 });
 
 app.get("/api/voice-attempts/student", async (req, res) => {
-  const authUser = await getUserByHeader(req);
-  if (!authUser || authUser.role !== "student") {
-    return res.status(403).json({ error: "Student access required." });
+  const email = String(req.headers["x-user-email"] || "").trim().toLowerCase();
+  if (!email) {
+    return res.status(403).json({ error: "Authentication required." });
   }
 
   try {
+    // Check if student exists
+    const student = await Student.findOne({
+      where: { studentEmail: email },
+      attributes: ["id", "name", "studentEmail"]
+    });
+    if (!student) {
+      return res.status(403).json({ error: "Student not found." });
+    }
+
     const attempts = await VoiceAttempt.findAll({
-      where: { studentEmail: authUser.email },
+      where: { studentEmail: email },
       order: [["createdAt", "DESC"]],
       limit: 100
     });
@@ -817,11 +1170,30 @@ app.get("/api/admin/users", async (req, res) => {
     const users = await User.findAll({
       attributes: ["id", "name", "email", "role"]
     });
+    
+    // Include approved students that have email accounts
+    const approvedStudents = await Student.findAll({
+      where: { approvedByAdmin: true, studentEmail: { [Op.not]: null } },
+      attributes: ["id", "name", "studentEmail", "grade", "parentEmail", "score"]
+    });
+
+    // Convert approved students to user format
+    const studentUsers = approvedStudents.map((s) => ({
+      id: s.id,
+      name: s.name,
+      email: s.studentEmail,
+      role: "student",
+      grade: s.grade,
+      parentEmail: s.parentEmail,
+      score: s.score
+    }));
+
     const students = await Student.findAll({
       attributes: ["id", "name", "grade", "parentEmail", "score"]
     });
+    
     return res.json({
-      users: users.map((u) => u.toJSON()),
+      users: [...users.map((u) => u.toJSON()), ...studentUsers],
       students: students.map((s) => s.toJSON())
     });
   } catch (err) {
@@ -843,6 +1215,10 @@ app.post("/api/admin/users", async (req, res) => {
 
   if (!name || !email || !password || !role) {
     return res.status(400).json({ error: "Name, email, password, and role are required." });
+  }
+  
+  if (!VALID_ROLES.has(role) || role === "student") {
+    return res.status(400).json({ error: "Invalid role. Only teacher, parent, or admin are allowed." });
   }
 
   try {
@@ -878,6 +1254,10 @@ app.put("/api/admin/users/:id", async (req, res) => {
 
   if (!id || !name || !email || !role) {
     return res.status(400).json({ error: "ID, name, email, and role are required." });
+  }
+  
+  if (!VALID_ROLES.has(role) || role === "student") {
+    return res.status(400).json({ error: "Invalid role. Only teacher, parent, or admin are allowed." });
   }
 
   try {
@@ -918,12 +1298,17 @@ app.delete("/api/admin/users/:id", async (req, res) => {
     const user = await User.findByPk(id);
     if (!user) return res.status(404).json({ error: "User not found." });
 
+    // If deleting a parent, also delete all their children (students)
+    if (user.role === "parent") {
+      await Student.destroy({ where: { createdByParentEmail: user.email } });
+    }
+
     await user.destroy();
     return res.status(204).send();
   } catch (err) {
     return res.status(500).json({ error: "Could not delete user." });
   }
-});
+})
 
 app.post("/api/admin/connect-teacher-student", async (req, res) => {
   const authUser = await getUserByHeader(req);
@@ -958,15 +1343,13 @@ app.post("/api/admin/connect-teacher-student", async (req, res) => {
       }
       student = await Student.findOne({ where: { name: studentUser.name } });
       if (!student) {
-         student = await Student.create({
-           name: studentUser.name,
-           studentEmail: studentEmail,
-           score: 0,
-           needsHelp: false
-         });
-      } else {
-         await student.update({ studentEmail: studentEmail });
+        return res.status(404).json({ error: `No approved student record found for "${studentUser.name}". Student must be created by a parent first.` });
       }
+    }
+
+    // Only allow connecting to students that have a parent
+    if (!student.parentEmail && !student.createdByParentEmail) {
+      return res.status(400).json({ error: `Cannot connect to student "${student.name}" - no parent associated. Student must be created by a parent first.` });
     }
 
     await student.update({ teacherId: teacher.id });
@@ -1295,13 +1678,50 @@ app.get("/api/admin/overview", async (req, res) => {
   }
 });
 
+let serverInstance = null;
+
+// Graceful shutdown handler
+async function gracefulShutdown(signal) {
+  console.log(`\n${signal} received. Shutting down gracefully...`);
+  
+  // Close HTTP server
+  if (serverInstance) {
+    await new Promise((resolve) => {
+      serverInstance.close(() => {
+        console.log("HTTP server closed.");
+        resolve();
+      });
+      // Force close after 10 seconds
+      setTimeout(() => {
+        console.warn("Forcing server shutdown after timeout.");
+        resolve();
+      }, 10000);
+    });
+  }
+
+  // Close database connection
+  try {
+    await sequelize.close();
+    console.log("Database connection closed.");
+  } catch (err) {
+    console.error("Error closing database:", err.message);
+  }
+
+  console.log("Shutdown complete.");
+  process.exit(0);
+}
+
+// Handle shutdown signals
+process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+process.on("SIGINT", () => gracefulShutdown("SIGINT"));
+
 initDb()
   .then(async () => {
     let lastErr;
     for (let port = PREFERRED_PORT; port < PREFERRED_PORT + PORT_FALLBACK_TRIES; port++) {
       try {
-        const server = await listenOnPort(port);
-        server.on("error", (err) => {
+        serverInstance = await listenOnPort(port);
+        serverInstance.on("error", (err) => {
           console.error("HTTP server error:", err);
         });
         if (port !== PREFERRED_PORT) {

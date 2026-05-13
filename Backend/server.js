@@ -10,15 +10,30 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "..", "Frontend")));
 
+// Disable caching for API responses to ensure fresh data after create/update/delete
+app.use((req, res, next) => {
+  if (req.path.startsWith("/api/") || req.path === "/register" || req.path === "/login") {
+    res.set("Cache-Control", "no-cache, no-store, must-revalidate");
+    res.set("Pragma", "no-cache");
+    res.set("Expires", "0");
+  }
+  next();
+});
+
 app.get("/health", (_, res) => {
   res.json({ ok: true });
 });
 
-app.post("/register", (req, res) => {
+app.post("/register", async (req, res) => {
   const { name, email, password, role } = req.body;
 
   if (!name || !email || !password || !role) {
     return res.status(400).json({ error: "name, email, password, and role are required." });
+  }
+
+  // Only allow Teacher and Parent roles
+  if (role !== "Teacher" && role !== "Parent") {
+    return res.status(400).json({ error: "Invalid role. Only 'Teacher' or 'Parent' are allowed." });
   }
 
   const query = `INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, ?)`;

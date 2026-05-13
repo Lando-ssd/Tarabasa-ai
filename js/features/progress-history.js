@@ -140,9 +140,9 @@ function renderStudentHistory(attempts, studentName) {
         .map(
           (attempt) => `
         <div class="history-item history-item-nested">
-          <div><strong>${escapeHtml(attempt.verb)}</strong> (${escapeHtml(attempt.tense)}) — ${attempt.overallScore}% overall</div>
+          <div style="font-size: 16px; font-weight: 600; color: #333;"><strong>${escapeHtml(attempt.verb)}</strong> (${escapeHtml(attempt.tense)}) — ${attempt.overallScore}% overall</div>
           <div class="history-item-sub">Pronunciation ${attempt.pronunciationScore}% · Fluency ${attempt.fluencyScore}% · Accuracy ${attempt.accuracyScore}%</div>
-          ${attempt.feedback ? `<div class="history-item-feedback" style="margin-top:8px; padding:8px; background-color:#f0f8ff; border-radius:3px; white-space:pre-wrap; font-size:0.9em; line-height:1.4;">${escapeHtml(attempt.feedback)}</div>` : ""}
+          ${attempt.feedback ? `<div class="history-item-feedback">${escapeHtml(attempt.feedback)}</div>` : ""}
           <div class="history-item-meta">${new Date(attempt.createdAt).toLocaleString()}</div>
         </div>`
         )
@@ -154,7 +154,10 @@ function renderStudentHistory(attempts, studentName) {
             <span class="history-accordion-title"><strong>${verbLabel}</strong> <span class="history-muted">(${tenseLabel})</span></span>
             <span class="history-accordion-meta">${g.attempts.length} ${g.attempts.length === 1 ? "try" : "tries"} · avg ${avg}%</span>
           </button>
-          <div class="history-accordion-panel" hidden>${rows}</div>
+          <div class="history-accordion-panel" hidden>
+            <div style="font-size: 18px; font-weight: 700; margin-bottom: 16px; color: #333;">${verbLabel} <span style="font-size: 14px; color: #666;">(${tenseLabel}) — ${avg}% overall</span></div>
+            ${rows}
+          </div>
         </div>`;
     }).join("");
     feed.innerHTML = `<p class="history-feed-intro">Voice attempts for <strong>${name}</strong> — tap a verb to expand details.</p><div class="history-accordion-list">${accordions}</div>`;

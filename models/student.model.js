@@ -64,6 +64,26 @@ module.exports = (sequelize) => sequelize.define("Student", {
     type: DataTypes.INTEGER,
     allowNull: true,
     field: "teacher_id"
+  },
+  approvedByAdmin: {
+    type: DataTypes.BOOLEAN,
+    allowNull: false,
+    defaultValue: false,
+    field: "approved_by_admin"
+  },
+  createdByParentEmail: {
+    type: DataTypes.STRING,
+    allowNull: true,
+    field: "created_by_parent_email"
+  },
+  password: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+  deletionRequestedAt: {
+    type: DataTypes.DATE,
+    allowNull: true,
+    field: "deletion_requested_at"
   }
 }, {
   tableName: "teacher_students",

@@ -125,7 +125,6 @@ async function adminLoadUsers() {
               <input id="user-edit-email-${user.id}" type="email" value="${user.email}" class="auth-input compact-input" style="width:100%; margin-bottom:4px;" placeholder="Email">
               <input id="user-edit-password-${user.id}" type="password" class="auth-input compact-input" style="width:100%; margin-bottom:4px;" placeholder="New Password (optional)">
               <select id="user-edit-role-${user.id}" class="auth-select compact-input" style="width:100%;">
-                <option value="student" ${user.role==='student'?'selected':''}>Student</option>
                 <option value="teacher" ${user.role==='teacher'?'selected':''}>Teacher</option>
                 <option value="parent" ${user.role==='parent'?'selected':''}>Parent</option>
                 <option value="admin" ${user.role==='admin'?'selected':''}>Admin</option>
@@ -232,6 +231,7 @@ async function adminConnectTeacherStudent() {
 
 // ─── Teacher Connections CRUD ──────────────────────────────────────────────
 
+// READ — load and render teacher connections (READ-ONLY)
 async function adminLoadTeacherConnections() {
   const container = document.getElementById("admin-teacher-connections-list");
   if (!container) return;
@@ -264,61 +264,22 @@ async function adminLoadTeacherConnections() {
           <td style="padding:10px 8px; text-align:center; font-size:0.88em;">Grade ${c.grade}</td>
           <td style="padding:10px 8px; text-align:center;">${c.score}% ${riskBadge}</td>
           <td style="padding:10px 8px;">
-            <div id="tconn-display-${c.id}">
-              <div style="font-weight:600;">${c.teacherName || "—"}</div>
-              <div style="font-size:0.8em;color:#888;">${c.teacherEmail}</div>
-            </div>
-            <div id="tconn-edit-${c.id}" style="display:none;">
-              <input
-                id="tconn-edit-input-${c.id}"
-                type="email"
-                value="${c.teacherEmail}"
-                placeholder="New teacher email"
-                class="auth-input compact-input"
-                style="width:100%; font-size:0.85em;"
-              >
-            </div>
-          </td>
-          <td style="padding:10px 8px; text-align:right; white-space:nowrap;">
-            <div id="tconn-actions-${c.id}">
-              <button
-                class="btn btn-info"
-                style="font-size:0.78em; padding:5px 12px; margin-right:6px;"
-                onclick="adminStartEditTeacherConnection(${c.id})"
-              >✏️ Edit</button>
-              <button
-                class="btn btn-warning"
-                style="font-size:0.78em; padding:5px 12px;"
-                onclick="adminDeleteTeacherConnection(${c.id}, '${c.studentName}')"
-              >🗑️ Disconnect</button>
-            </div>
-            <div id="tconn-save-actions-${c.id}" style="display:none;">
-              <button
-                class="btn btn-success"
-                style="font-size:0.78em; padding:5px 12px; margin-right:6px;"
-                onclick="adminSaveEditTeacherConnection(${c.id})"
-              >💾 Save</button>
-              <button
-                class="btn"
-                style="font-size:0.78em; padding:5px 12px; background:#e0e0e0; color:#333;"
-                onclick="adminCancelEditTeacherConnection(${c.id}, '${c.teacherEmail}', '${c.teacherName || ''}')"
-              >✕ Cancel</button>
-            </div>
+            <div style="font-weight:600;">${c.teacherName || "—"}</div>
+            <div style="font-size:0.8em;color:#888;">${c.teacherEmail}</div>
           </td>
         </tr>
       `;
     }).join("");
 
     container.innerHTML = `
-      <div style="overflow-x:auto;">
+      <div style="overflow-y:auto; max-height:500px;">
         <table style="width:100%; border-collapse:collapse; font-size:0.9em;">
           <thead>
-            <tr style="background:#f5f7ff; text-align:left;">
+            <tr style="background:#f5f7ff; text-align:left; position:sticky; top:0;">
               <th style="padding:10px 8px; color:#444;">Student</th>
               <th style="padding:10px 8px; color:#444; text-align:center;">Grade</th>
               <th style="padding:10px 8px; color:#444; text-align:center;">Score</th>
               <th style="padding:10px 8px; color:#444;">Linked Teacher</th>
-              <th style="padding:10px 8px; color:#444; text-align:right;">Actions</th>
             </tr>
           </thead>
           <tbody>${rows}</tbody>
@@ -333,57 +294,24 @@ async function adminLoadTeacherConnections() {
   }
 }
 
+// UPDATE — teacher connection editing removed (read-only mode)
 function adminStartEditTeacherConnection(id) {
-  document.getElementById(`tconn-display-${id}`).style.display = "none";
-  document.getElementById(`tconn-edit-${id}`).style.display = "block";
-  document.getElementById(`tconn-actions-${id}`).style.display = "none";
-  document.getElementById(`tconn-save-actions-${id}`).style.display = "block";
-  document.getElementById(`tconn-edit-input-${id}`).focus();
+  // No-op: connections are now read-only
 }
 
+// UPDATE — teacher connection editing removed (read-only mode)
 function adminCancelEditTeacherConnection(id, originalEmail, originalName) {
-  document.getElementById(`tconn-display-${id}`).style.display = "block";
-  document.getElementById(`tconn-edit-${id}`).style.display = "none";
-  document.getElementById(`tconn-actions-${id}`).style.display = "block";
-  document.getElementById(`tconn-save-actions-${id}`).style.display = "none";
-  document.getElementById(`tconn-edit-input-${id}`).value = originalEmail;
+  // No-op: connections are now read-only
 }
 
+// UPDATE — teacher connection save removed (read-only mode)
 async function adminSaveEditTeacherConnection(id) {
-  const newTeacherEmail = document.getElementById(`tconn-edit-input-${id}`).value.trim().toLowerCase();
-  if (!newTeacherEmail) {
-    alert("Please enter a valid teacher email.");
-    return;
-  }
-
-  const saveBtn = document.querySelector(`#tconn-save-actions-${id} button`);
-  if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = "Saving..."; }
-
-  try {
-    await apiRequest(`/api/admin/teacher-connections/${id}`, {
-      method: "PUT",
-      body: JSON.stringify({ teacherEmail: newTeacherEmail })
-    });
-    alert("✅ Teacher connection updated!");
-    await adminLoadTeacherConnections();
-  } catch (err) {
-    alert("❌ Error: " + (err.message || "Could not update teacher connection."));
-    if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = "💾 Save"; }
-  }
+  // No-op: connections are now read-only
 }
 
+// DELETE — teacher connection delete removed (read-only mode)
 async function adminDeleteTeacherConnection(id, studentName) {
-  if (!confirm(`Disconnect "${studentName}" from their teacher?`)) {
-    return;
-  }
-
-  try {
-    await apiRequest(`/api/admin/teacher-connections/${id}`, { method: "DELETE" });
-    alert(`✅ ${studentName} disconnected from teacher.`);
-    await adminLoadTeacherConnections();
-  } catch (err) {
-    alert("❌ Error: " + (err.message || "Could not disconnect."));
-  }
+  // No-op: connections are now read-only
 }
 
 // ─── Student ↔ Parent CRUD ─────────────────────────────────────────────────
@@ -434,7 +362,7 @@ function showConnectionFeedback(msg, type) {
   setTimeout(() => banner.remove(), 4000);
 }
 
-// READ — load and render all connections
+// READ — load and render all connections (READ-ONLY)
 async function adminLoadConnections() {
   const container = document.getElementById("admin-connections-list");
   container.innerHTML = `<div style="color:#aaa; text-align:center; padding:16px;">Loading...</div>`;
@@ -447,7 +375,7 @@ async function adminLoadConnections() {
       container.innerHTML = `
         <div style="text-align:center; color:#aaa; padding:24px;">
           <div style="font-size:2em; margin-bottom:8px;">🔗</div>
-          No student-parent connections yet. Use the form above to create one.
+          No student-parent connections yet.
         </div>`;
       return;
     }
@@ -466,61 +394,22 @@ async function adminLoadConnections() {
           <td style="padding:10px 8px; text-align:center; font-size:0.88em;">Grade ${c.grade}</td>
           <td style="padding:10px 8px; text-align:center;">${c.score}% ${riskBadge}</td>
           <td style="padding:10px 8px;">
-            <div id="conn-display-${c.id}">
-              <div style="font-weight:600;">${c.parentName || "—"}</div>
-              <div style="font-size:0.8em;color:#888;">${c.parentEmail}</div>
-            </div>
-            <div id="conn-edit-${c.id}" style="display:none;">
-              <input
-                id="conn-edit-input-${c.id}"
-                type="email"
-                value="${c.parentEmail}"
-                placeholder="New parent email"
-                class="auth-input compact-input"
-                style="width:100%; font-size:0.85em;"
-              >
-            </div>
-          </td>
-          <td style="padding:10px 8px; text-align:right; white-space:nowrap;">
-            <div id="conn-actions-${c.id}">
-              <button
-                class="btn btn-info"
-                style="font-size:0.78em; padding:5px 12px; margin-right:6px;"
-                onclick="adminStartEditConnection(${c.id})"
-              >✏️ Edit</button>
-              <button
-                class="btn btn-warning"
-                style="font-size:0.78em; padding:5px 12px;"
-                onclick="adminDeleteConnection(${c.id}, '${c.studentName}')"
-              >🗑️ Disconnect</button>
-            </div>
-            <div id="conn-save-actions-${c.id}" style="display:none;">
-              <button
-                class="btn btn-success"
-                style="font-size:0.78em; padding:5px 12px; margin-right:6px;"
-                onclick="adminSaveEditConnection(${c.id})"
-              >💾 Save</button>
-              <button
-                class="btn"
-                style="font-size:0.78em; padding:5px 12px; background:#e0e0e0; color:#333;"
-                onclick="adminCancelEditConnection(${c.id}, '${c.parentEmail}', '${c.parentName || ''}')"
-              >✕ Cancel</button>
-            </div>
+            <div style="font-weight:600;">${c.parentName || "—"}</div>
+            <div style="font-size:0.8em;color:#888;">${c.parentEmail}</div>
           </td>
         </tr>
       `;
     }).join("");
 
     container.innerHTML = `
-      <div style="overflow-x:auto;">
+      <div style="overflow-y:auto; max-height:500px;">
         <table style="width:100%; border-collapse:collapse; font-size:0.9em;">
           <thead>
-            <tr style="background:#f5f7ff; text-align:left;">
+            <tr style="background:#f5f7ff; text-align:left; position:sticky; top:0;">
               <th style="padding:10px 8px; color:#444;">Student</th>
               <th style="padding:10px 8px; color:#444; text-align:center;">Grade</th>
               <th style="padding:10px 8px; color:#444; text-align:center;">Score</th>
               <th style="padding:10px 8px; color:#444;">Linked Parent</th>
-              <th style="padding:10px 8px; color:#444; text-align:right;">Actions</th>
             </tr>
           </thead>
           <tbody>${rows}</tbody>
@@ -535,60 +424,197 @@ async function adminLoadConnections() {
   }
 }
 
-// UPDATE — start editing a connection row
+// UPDATE — connection editing removed (read-only mode)
 function adminStartEditConnection(id) {
-  document.getElementById(`conn-display-${id}`).style.display = "none";
-  document.getElementById(`conn-edit-${id}`).style.display = "block";
-  document.getElementById(`conn-actions-${id}`).style.display = "none";
-  document.getElementById(`conn-save-actions-${id}`).style.display = "block";
-  document.getElementById(`conn-edit-input-${id}`).focus();
+  // No-op: connections are now read-only
 }
 
-// UPDATE — cancel editing
+// UPDATE — connection editing removed (read-only mode)
 function adminCancelEditConnection(id, originalEmail, originalName) {
-  document.getElementById(`conn-display-${id}`).style.display = "block";
-  document.getElementById(`conn-edit-${id}`).style.display = "none";
-  document.getElementById(`conn-actions-${id}`).style.display = "block";
-  document.getElementById(`conn-save-actions-${id}`).style.display = "none";
-  document.getElementById(`conn-edit-input-${id}`).value = originalEmail;
+  // No-op: connections are now read-only
 }
 
-// UPDATE — save the edited parent email
+// ─── PENDING STUDENT APPROVALS ────────────────────────────────────────────
+async function adminLoadPendingStudents() {
+  const container = document.getElementById("admin-pending-students-list");
+  if (!container) return;
+  container.innerHTML = `<div style="text-align:center; color:#aaa; padding:16px;">Loading pending approvals...</div>`;
+
+  try {
+    const students = await getPendingStudents();
+    
+    if (!students || students.length === 0) {
+      container.innerHTML = `
+        <div style="text-align:center; color:#aaa; padding:24px;">
+          <div style="font-size:2em; margin-bottom:8px;">✅</div>
+          No pending students to approve.
+        </div>`;
+      return;
+    }
+
+    const rows = students.map(student => `
+      <div style="
+        background:#fff;
+        border:1px solid #e0e0e0;
+        border-left:4px solid #FF9800;
+        border-radius:8px;
+        padding:14px;
+        margin-bottom:10px;
+        display:grid;
+        grid-template-columns:1fr auto;
+        gap:16px;
+        align-items:center;
+      ">
+        <div>
+          <div style="font-weight:700; font-size:1.05em; color:#333; margin-bottom:4px;">${student.name}</div>
+          <div style="font-size:0.88em; color:#666; margin-bottom:8px;">
+            <span style="margin-right:16px;">📚 Grade ${student.grade}</span>
+            <span>📧 ${student.studentEmail}</span>
+          </div>
+          <div style="font-size:0.85em; color:#999;">
+            <div>Created by: <strong>${student.createdByParentEmail || 'System'}</strong></div>
+            <div>Date: <strong>${new Date(student.createdAt).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' })}</strong></div>
+          </div>
+        </div>
+        <div style="display:flex; gap:10px; flex-direction:column; min-width:160px;">
+          <button class="btn btn-success" style="padding:8px 16px; font-size:0.9em;" onclick="adminApproveStudent(${student.id}, '${student.name}')">
+            ✅ Approve
+          </button>
+          <button class="btn btn-warning" style="padding:8px 16px; font-size:0.9em;" onclick="adminRejectStudent(${student.id}, '${student.name}')">
+            ❌ Reject
+          </button>
+        </div>
+      </div>
+    `).join("");
+
+    container.innerHTML = rows;
+  } catch (err) {
+    container.innerHTML = `<div style="color:#c62828; padding:12px;">Error loading pending students: ${err.message}</div>`;
+  }
+}
+
+async function adminApproveStudent(studentId, studentName) {
+  if (!confirm(`Approve student account for "${studentName}"? They will be able to use the platform.`)) {
+    return;
+  }
+
+  try {
+    await approveStudent(studentId);
+    alert(`✅ Student "${studentName}" approved successfully!`);
+    await adminLoadPendingStudents();
+  } catch (err) {
+    alert("❌ Error: " + (err.message || "Could not approve student."));
+  }
+}
+
+async function adminRejectStudent(studentId, studentName) {
+  if (!confirm(`Reject and delete the account for "${studentName}"? This action cannot be undone.`)) {
+    return;
+  }
+
+  try {
+    await rejectStudent(studentId);
+    alert(`✅ Student "${studentName}" rejected and deleted.`);
+    await adminLoadPendingStudents();
+  } catch (err) {
+    alert("❌ Error: " + (err.message || "Could not reject student."));
+  }
+}
+
+// UPDATE — connection editing removed (read-only mode)
 async function adminSaveEditConnection(id) {
-  const newParentEmail = document.getElementById(`conn-edit-input-${id}`).value.trim().toLowerCase();
-  if (!newParentEmail) {
-    alert("Please enter a valid parent email.");
-    return;
-  }
+  // No-op: connections are now read-only
+}
 
-  const saveBtn = document.querySelector(`#conn-save-actions-${id} button`);
-  if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = "Saving..."; }
+// DELETE — disconnect function removed (read-only mode)
+async function adminDeleteConnection(id, studentName) {
+  // No-op: connections are now read-only
+}
+
+// ─── STUDENT DELETION REQUESTS ────────────────────────────────────────────
+async function adminLoadDeletionRequests() {
+  const container = document.getElementById("admin-deletion-requests-list");
+  if (!container) return;
+  container.innerHTML = `<div style="text-align:center; color:#aaa; padding:16px;">Loading deletion requests...</div>`;
 
   try {
-    await apiRequest(`/api/admin/connections/${id}`, {
-      method: "PUT",
-      body: JSON.stringify({ parentEmail: newParentEmail })
-    });
-    showConnectionFeedback("✅ Connection updated!", "success");
-    await adminLoadConnections();
+    const students = await getDeletionRequests();
+    
+    if (!students || students.length === 0) {
+      container.innerHTML = `
+        <div style="text-align:center; color:#aaa; padding:24px;">
+          <div style="font-size:2em; margin-bottom:8px;">✅</div>
+          No pending deletion requests.
+        </div>`;
+      return;
+    }
+
+    const rows = students.map(student => `
+      <div style="
+        background:#fff;
+        border:1px solid #e0e0e0;
+        border-left:4px solid #D32F2F;
+        border-radius:8px;
+        padding:14px;
+        margin-bottom:10px;
+        display:grid;
+        grid-template-columns:1fr auto;
+        gap:16px;
+        align-items:center;
+      ">
+        <div>
+          <div style="font-weight:700; font-size:1.05em; color:#333; margin-bottom:4px;">${student.name}</div>
+          <div style="font-size:0.88em; color:#666; margin-bottom:8px;">
+            <span style="margin-right:16px;">📚 Grade ${student.grade}</span>
+            <span>📧 ${student.studentEmail}</span>
+          </div>
+          <div style="font-size:0.85em; color:#999;">
+            <div>Parent: <strong>${student.parentEmail || 'Unknown'}</strong></div>
+            <div>Requested: <strong>${new Date(student.deletionRequestedAt).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' })}</strong></div>
+          </div>
+        </div>
+        <div style="display:flex; gap:10px; flex-direction:column; min-width:160px;">
+          <button class="btn btn-success" style="padding:8px 16px; font-size:0.9em;" onclick="adminApproveDeletion(${student.id}, '${student.name}')">
+            ✅ Approve
+          </button>
+          <button class="btn btn-warning" style="padding:8px 16px; font-size:0.9em;" onclick="adminRejectDeletion(${student.id}, '${student.name}')">
+            ❌ Reject
+          </button>
+        </div>
+      </div>
+    `).join("");
+
+    container.innerHTML = rows;
   } catch (err) {
-    alert("❌ Error: " + (err.message || "Could not update connection."));
-    if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = "💾 Save"; }
+    container.innerHTML = `<div style="color:#c62828; padding:12px;">Error loading deletion requests: ${err.message}</div>`;
   }
 }
 
-// DELETE — disconnect student from parent
-async function adminDeleteConnection(id, studentName) {
-  if (!confirm(`Disconnect "${studentName}" from their parent? The parent will no longer see this student's progress.`)) {
+async function adminApproveDeletion(studentId, studentName) {
+  if (!confirm(`Approve deletion of "${studentName}"? This action cannot be undone.`)) {
     return;
   }
 
   try {
-    await apiRequest(`/api/admin/connections/${id}`, { method: "DELETE" });
-    showConnectionFeedback(`✅ ${studentName} disconnected from parent.`, "success");
-    await adminLoadConnections();
+    await approveDeletion(studentId);
+    alert(`✅ Student "${studentName}" account deleted successfully.`);
+    await adminLoadDeletionRequests();
   } catch (err) {
-    alert("❌ Error: " + (err.message || "Could not disconnect."));
+    alert("❌ Error: " + (err.message || "Could not approve deletion."));
+  }
+}
+
+async function adminRejectDeletion(studentId, studentName) {
+  if (!confirm(`Reject deletion request for "${studentName}"? The account will be retained.`)) {
+    return;
+  }
+
+  try {
+    await rejectDeletion(studentId);
+    alert(`✅ Deletion request for "${studentName}" rejected.`);
+    await adminLoadDeletionRequests();
+  } catch (err) {
+    alert("❌ Error: " + (err.message || "Could not reject deletion."));
   }
 }
 
@@ -613,3 +639,9 @@ window.adminStartEditUser = adminStartEditUser;
 window.adminCancelEditUser = adminCancelEditUser;
 window.adminSaveEditUser = adminSaveEditUser;
 window.adminDeleteUser = adminDeleteUser;
+window.adminLoadPendingStudents = adminLoadPendingStudents;
+window.adminApproveStudent = adminApproveStudent;
+window.adminRejectStudent = adminRejectStudent;
+window.adminLoadDeletionRequests = adminLoadDeletionRequests;
+window.adminApproveDeletion = adminApproveDeletion;
+window.adminRejectDeletion = adminRejectDeletion;

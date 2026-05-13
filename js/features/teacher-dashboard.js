@@ -89,6 +89,54 @@ async function renderStudentList() {
 // ─── Drawer ──────────────────────────────────────────────────────────────────
 let _drawerEditId = null;
 
+async function loadAvailableStudentsForDrawer(query = "") {
+  const container = document.getElementById("drawer-available-students");
+  if (!container) return;
+  
+  container.innerHTML = `<div style="text-align:center; color:#aaa; padding:12px;">Loading available students...</div>`;
+  
+  try {
+    const students = await getAvailableStudents(query);
+    
+    if (!students || students.length === 0) {
+      container.innerHTML = `<div style="text-align:center; color:#aaa; padding:12px;">No available approved students to add.</div>`;
+      return;
+    }
+    
+    const html = students.map(s => `
+      <div style="
+        padding:10px 12px;
+        border:1px solid #e0e0e0;
+        border-radius:6px;
+        margin-bottom:8px;
+        cursor:pointer;
+        background:#fafafa;
+        transition:all 0.2s;
+      " onclick="selectAvailableStudent(${s.id}, '${s.name}')" onmouseover="this.style.background='#f0f0f0'; this.style.borderColor='#2196F3';" onmouseout="this.style.background='#fafafa'; this.style.borderColor='#e0e0e0';">
+        <div style="font-weight:600; color:#333;">${s.name}</div>
+        <div style="font-size:0.82em; color:#666;">Grade ${s.grade} • ${s.parentName || 'No parent info'}</div>
+      </div>
+    `).join("");
+    
+    container.innerHTML = html;
+  } catch (err) {
+    container.innerHTML = `<div style="color:#c62828; padding:12px;">Error loading students: ${err.message}</div>`;
+  }
+}
+
+function selectAvailableStudent(studentId, studentName) {
+  document.getElementById("drawer-selected-student-id").value = studentId;
+  document.getElementById("drawer-selected-student-name").textContent = `Selected: ${studentName}`;
+  document.getElementById("drawer-selected-student-name").style.display = "block";
+  document.getElementById("drawer-selected-student-name").style.color = "#2e7d32";
+  document.getElementById("drawer-selected-student-name").style.fontWeight = "600";
+}
+
+function onDrawerSearchInput(event) {
+  const query = event.target.value.trim();
+  loadAvailableStudentsForDrawer(query);
+}
+
 function switchDrawerTab(tab) {
   ["info", "scores", "parent"].forEach(t => {
     document.getElementById(`drawer-tab-${t}`).classList.toggle("active-tab", t === tab);
@@ -96,7 +144,7 @@ function switchDrawerTab(tab) {
   });
 }
 
-function openStudentDrawer(id) {
+async function openStudentDrawer(id) {
   _drawerEditId = id;
   const drawer = document.getElementById("student-drawer");
   const overlay = document.getElementById("student-drawer-overlay");
@@ -130,9 +178,14 @@ function openStudentDrawer(id) {
       document.getElementById("drawer-parent-phone").value = s.parentPhone || "";
       document.getElementById("drawer-parent-email").value = s.parentEmail || "";
       updateScorePreview(s.score);
+      document.getElementById("drawer-form-container").style.display = "block";
+      document.getElementById("drawer-search-container").style.display = "none";
     });
   } else {
-    title.textContent = "Add Student";
+    title.textContent = "Add Approved Student to Class";
+    document.getElementById("drawer-form-container").style.display = "none";
+    document.getElementById("drawer-search-container").style.display = "block";
+    await loadAvailableStudentsForDrawer();
   }
 
   drawer.style.display = "flex";
@@ -169,6 +222,28 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 async function saveStudentDrawer() {
+  if (!_drawerEditId) {
+    // Adding a new student - use the search/selection mode
+    const selectedId = document.getElementById("drawer-selected-student-id")?.value;
+    if (!selectedId) {
+      document.getElementById("drawer-error").textContent = "Please select a student.";
+      document.getElementById("drawer-error").style.display = "block";
+      return;
+    }
+    
+    try {
+      await addTeacherStudent(Number(selectedId));
+      closeStudentDrawer();
+      await renderClassOverview();
+      await renderStudentList();
+    } catch (err) {
+      document.getElementById("drawer-error").textContent = err.message || "Could not add student to class.";
+      document.getElementById("drawer-error").style.display = "block";
+    }
+    return;
+  }
+
+  // Editing an existing student
   const name = document.getElementById("drawer-name").value.trim();
   const grade = document.getElementById("drawer-grade").value;
   const scoreRaw = document.getElementById("drawer-score").value;
@@ -198,11 +273,7 @@ async function saveStudentDrawer() {
   const payload = { name, grade, parentName, parentPhone, parentEmail, score, isActiveToday };
 
   try {
-    if (_drawerEditId) {
-      await updateTeacherStudent(_drawerEditId, payload);
-    } else {
-      await addTeacherStudent(payload);
-    }
+    await updateTeacherStudent(_drawerEditId, payload);
     closeStudentDrawer();
     await renderClassOverview();
     await renderStudentList();
@@ -360,3 +431,6 @@ window.openStudentDrawer = openStudentDrawer;
 window.closeStudentDrawer = closeStudentDrawer;
 window.saveStudentDrawer = saveStudentDrawer;
 window.switchDrawerTab = switchDrawerTab;
+window.loadAvailableStudentsForDrawer = loadAvailableStudentsForDrawer;
+window.selectAvailableStudent = selectAvailableStudent;
+window.onDrawerSearchInput = onDrawerSearchInput;

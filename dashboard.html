@@ -33,48 +33,64 @@
       <div style="padding:22px 20px;">
         <h3 id="drawer-title" style="margin:0 0 18px; font-size:1.3em; color:#333;">Add Student</h3>
 
-        <!-- TAB: Info -->
-        <div id="drawer-tab-content-info">
-          <label style="font-size:0.82em; color:#555; font-weight:600;">Full Name *</label>
-          <input id="drawer-name" type="text" class="auth-input compact-input" placeholder="e.g. Juan Dela Cruz" style="margin-bottom:12px;">
+        <!-- FORM CONTAINER: For editing existing students -->
+        <div id="drawer-form-container">
+          <!-- TAB: Info -->
+          <div id="drawer-tab-content-info">
+            <label style="font-size:0.82em; color:#555; font-weight:600;">Full Name *</label>
+            <input id="drawer-name" type="text" class="auth-input compact-input" placeholder="e.g. Juan Dela Cruz" style="margin-bottom:12px;">
 
-          <label style="font-size:0.82em; color:#555; font-weight:600;">Grade Level *</label>
-          <select id="drawer-grade" class="auth-select compact-input" style="margin-bottom:12px;">
-            <option value="1">Grade 1</option>
-            <option value="2">Grade 2</option>
-            <option value="3">Grade 3</option>
-            <option value="4">Grade 4</option>
-            <option value="5">Grade 5</option>
-            <option value="6">Grade 6</option>
-          </select>
+            <label style="font-size:0.82em; color:#555; font-weight:600;">Grade Level *</label>
+            <select id="drawer-grade" class="auth-select compact-input" style="margin-bottom:12px;">
+              <option value="1">Grade 1</option>
+              <option value="2">Grade 2</option>
+              <option value="3">Grade 3</option>
+              <option value="4">Grade 4</option>
+              <option value="5">Grade 5</option>
+              <option value="6">Grade 6</option>
+            </select>
 
-          <label style="font-size:0.82em; color:#555; font-weight:600;">Active Today?</label>
-          <select id="drawer-active" class="auth-select compact-input" style="margin-bottom:12px;">
-            <option value="true">Yes</option>
-            <option value="false">No</option>
-          </select>
-        </div>
+            <label style="font-size:0.82em; color:#555; font-weight:600;">Active Today?</label>
+            <select id="drawer-active" class="auth-select compact-input" style="margin-bottom:12px;">
+              <option value="true">Yes</option>
+              <option value="false">No</option>
+            </select>
+          </div>
 
-        <!-- TAB: Scores -->
-        <div id="drawer-tab-content-scores" style="display:none;">
-          <label style="font-size:0.82em; color:#555; font-weight:600;">Score (0–100) *</label>
-          <input id="drawer-score" type="number" min="0" max="100" class="auth-input compact-input" placeholder="e.g. 85" style="margin-bottom:12px;">
-          <div id="drawer-score-preview" style="text-align:center; padding:14px; border-radius:10px; background:#f5f7ff; margin-bottom:12px;">
-            <span style="font-size:2em; font-weight:700;" id="drawer-score-big">—</span><br>
-            <span id="drawer-score-status" style="font-size:0.9em; color:#666;">Enter a score</span>
+          <!-- TAB: Scores -->
+          <div id="drawer-tab-content-scores" style="display:none;">
+            <label style="font-size:0.82em; color:#555; font-weight:600;">Score (0–100) *</label>
+            <input id="drawer-score" type="number" min="0" max="100" class="auth-input compact-input" placeholder="e.g. 85" style="margin-bottom:12px;">
+            <div id="drawer-score-preview" style="text-align:center; padding:14px; border-radius:10px; background:#f5f7ff; margin-bottom:12px;">
+              <span style="font-size:2em; font-weight:700;" id="drawer-score-big">—</span><br>
+              <span id="drawer-score-status" style="font-size:0.9em; color:#666;">Enter a score</span>
+            </div>
+          </div>
+
+          <!-- TAB: Parent -->
+          <div id="drawer-tab-content-parent" style="display:none;">
+            <label style="font-size:0.82em; color:#555; font-weight:600;">Parent Name</label>
+            <input id="drawer-parent-name" type="text" class="auth-input compact-input" placeholder="e.g. Maria Dela Cruz" style="margin-bottom:12px;">
+
+            <label style="font-size:0.82em; color:#555; font-weight:600;">Parent Phone</label>
+            <input id="drawer-parent-phone" type="tel" class="auth-input compact-input" placeholder="e.g. +63 900 123 4567" style="margin-bottom:12px;">
+
+            <label style="font-size:0.82em; color:#555; font-weight:600;">Parent Email</label>
+            <input id="drawer-parent-email" type="email" class="auth-input compact-input" placeholder="e.g. parent@gmail.com" style="margin-bottom:12px;">
           </div>
         </div>
 
-        <!-- TAB: Parent -->
-        <div id="drawer-tab-content-parent" style="display:none;">
-          <label style="font-size:0.82em; color:#555; font-weight:600;">Parent Name</label>
-          <input id="drawer-parent-name" type="text" class="auth-input compact-input" placeholder="e.g. Maria Dela Cruz" style="margin-bottom:12px;">
-
-          <label style="font-size:0.82em; color:#555; font-weight:600;">Parent Phone</label>
-          <input id="drawer-parent-phone" type="tel" class="auth-input compact-input" placeholder="e.g. +63 900 123 4567" style="margin-bottom:12px;">
-
-          <label style="font-size:0.82em; color:#555; font-weight:600;">Parent Email</label>
-          <input id="drawer-parent-email" type="email" class="auth-input compact-input" placeholder="e.g. parent@gmail.com" style="margin-bottom:12px;">
+        <!-- SEARCH CONTAINER: For adding available students -->
+        <div id="drawer-search-container" style="display:none;">
+          <label style="font-size:0.82em; color:#555; font-weight:600; display:block; margin-bottom:8px;">🔍 Search Approved Students</label>
+          <input id="drawer-search-input" type="text" class="auth-input compact-input" placeholder="Search by name, parent, or email..." style="margin-bottom:12px;" oninput="onDrawerSearchInput(event)">
+          
+          <div id="drawer-available-students" style="max-height:320px; overflow-y:auto; padding-right:8px; margin-bottom:12px;">
+            <div style="text-align:center; color:#aaa; padding:12px;">Loading students...</div>
+          </div>
+          
+          <input id="drawer-selected-student-id" type="hidden" value="">
+          <div id="drawer-selected-student-name" style="display:none; padding:10px 12px; background:#e8f5e9; border-radius:6px; margin-bottom:12px; color:#2e7d32; font-weight:600;"></div>
         </div>
 
         <!-- Actions -->
@@ -120,11 +136,8 @@
       </div>
 
       <div class="panel" id="students-panel">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
-          <h3 style="margin:0;">Class List</h3>
-          <button class="btn btn-success" style="margin:0; padding:8px 18px; font-size:0.9em;" onclick="openStudentDrawer(null)">➕ Add Student</button>
-        </div>
-        <div class="toolbar-row" style="grid-template-columns: 2fr 1fr 1fr auto;">
+        <h3 style="margin:0; margin-bottom:14px;">Class List</h3>
+        <div class="toolbar-row" style="grid-template-columns: 2fr 1fr 1fr auto auto;">
           <input id="student-search-input" class="auth-input compact-input" type="text" placeholder="Search student/parent">
           <select id="grade-filter-select" class="auth-select compact-input">
             <option value="">All Grades</option>
@@ -141,6 +154,7 @@
             <option value="false">On Track</option>
           </select>
           <button class="btn btn-info" onclick="renderStudentList()">Apply</button>
+          <button class="btn btn-success" onclick="openStudentDrawer(null)" style="white-space:nowrap;">➕ Add Student</button>
         </div>
         <div id="student-list-container"></div>
       </div>
@@ -164,6 +178,9 @@
         <h3>Action Verb Library & Lesson Cards</h3>
         <div id="tense-selector" style="margin-bottom: 12px;"></div>
         <div class="notification" id="selected-verb-label">Target: Select a verb card.</div>
+        <div class="search-container" style="margin-bottom: 16px;">
+          <input type="text" id="verb-search" class="search-input" placeholder="🔍 Search verbs... (e.g., run, jump, play)">
+        </div>
         <div class="verb-grid" id="verb-library-grid"></div>
       </div>
       <div class="panel">
@@ -195,6 +212,59 @@
     <div id="parent-dashboard" class="screen">
       <h2>Parent Dashboard 👪</h2>
       <div class="notification">Track your child's progress, pronunciation practice, and activity completion.</div>
+
+      <div class="panel">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+          <h3 style="margin:0;">📝 Create Student</h3>
+          <button class="btn btn-success" id="parent-create-student-btn" onclick="toggleParentCreateStudent()" style="font-size:0.9em; padding:8px 16px;">➕ New Student</button>
+        </div>
+        
+        <!-- Create Student Form -->
+        <div id="parent-create-student-form" style="display:none; background:#f9f9f9; padding:16px; border-radius:8px; border:1px solid #e0e0e0; margin-bottom:16px;">
+          <h4 style="margin:0 0 12px; color:#333;">Create Pending Student Account</h4>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px;">
+            <div>
+              <label style="font-size:0.82em; color:#555; font-weight:600; display:block; margin-bottom:4px;">Student Name *</label>
+              <input id="parent-student-name" type="text" class="auth-input compact-input" placeholder="e.g. Juan Dela Cruz">
+            </div>
+            <div>
+              <label style="font-size:0.82em; color:#555; font-weight:600; display:block; margin-bottom:4px;">Grade Level *</label>
+              <select id="parent-student-grade" class="auth-select compact-input">
+                <option value="1">Grade 1</option>
+                <option value="2">Grade 2</option>
+                <option value="3">Grade 3</option>
+                <option value="4">Grade 4</option>
+                <option value="5">Grade 5</option>
+                <option value="6">Grade 6</option>
+              </select>
+            </div>
+          </div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px;">
+            <div>
+              <label style="font-size:0.82em; color:#555; font-weight:600; display:block; margin-bottom:4px;">Student Email *</label>
+              <input id="parent-student-email" type="email" class="auth-input compact-input" placeholder="e.g. student@gmail.com">
+            </div>
+            <div>
+              <label style="font-size:0.82em; color:#555; font-weight:600; display:block; margin-bottom:4px;">Password *</label>
+              <input id="parent-student-password" type="password" class="auth-input compact-input" placeholder="Minimum 6 characters">
+            </div>
+          </div>
+          <div style="display:flex; gap:10px; margin-top:12px;">
+            <button class="btn btn-success" onclick="parentCreateStudent()" style="flex:1;">✅ Create Student</button>
+            <button class="btn back-btn" onclick="toggleParentCreateStudent()">Cancel</button>
+          </div>
+          <div id="parent-create-error" style="display:none; color:#c62828; font-size:0.88em; margin-top:10px; padding:8px 12px; background:#ffebee; border-radius:6px;"></div>
+          <div id="parent-create-success" style="display:none; color:#2e7d32; font-size:0.88em; margin-top:10px; padding:8px 12px; background:#e8f5e9; border-radius:6px;"></div>
+        </div>
+
+        <!-- Pending Students List -->
+        <div style="margin-bottom:16px;">
+          <h4 style="margin:0 0 10px; color:#333; font-size:0.95em;">📋 Your Created Students</h4>
+          <div id="parent-students-list" style="max-height:400px; overflow-y:auto; padding-right:8px;">
+            <div style="text-align:center; color:#aaa; padding:16px;">Loading students...</div>
+          </div>
+        </div>
+      </div>
 
       <div class="panel">
         <h3>👶 Child Overview</h3>
@@ -247,13 +317,34 @@
       </div>
 
       <div class="panel">
+        <h3>⏳ Pending Student Approvals</h3>
+        <p style="font-size:0.88em; color:#666; margin-bottom:12px;">Students created by parents waiting for approval</p>
+        <div style="display:flex; gap:10px; margin-bottom:12px;">
+          <button class="btn btn-info" style="font-size:0.82em; padding:6px 14px;" onclick="adminLoadPendingStudents()">🔄 Refresh Pending</button>
+        </div>
+        <div id="admin-pending-students-list" style="max-height: 500px; overflow-y: auto; overflow-x: auto; padding-right: 8px;">
+          <div style="text-align:center; color:#aaa; padding:16px;">Loading pending students...</div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h3>🗑️ Student Deletion Requests</h3>
+        <p style="font-size:0.88em; color:#666; margin-bottom:12px;">Parents have requested deletion of their child's account</p>
+        <div style="display:flex; gap:10px; margin-bottom:12px;">
+          <button class="btn btn-info" style="font-size:0.82em; padding:6px 14px;" onclick="adminLoadDeletionRequests()">🔄 Refresh Requests</button>
+        </div>
+        <div id="admin-deletion-requests-list" style="max-height: 500px; overflow-y: auto; overflow-x: auto; padding-right: 8px;">
+          <div style="text-align:center; color:#aaa; padding:16px;">Loading deletion requests...</div>
+        </div>
+      </div>
+
+      <div class="panel">
         <h3>User Management</h3>
         <div class="toolbar-row" style="margin-bottom: 10px;">
           <input id="admin-user-search" class="auth-input compact-input" type="text" placeholder="Search users...">
           <select id="admin-role-filter" class="auth-select compact-input">
             <option value="">All Roles</option>
             <option value="teacher">Teachers</option>
-            <option value="student">Students</option>
             <option value="parent">Parents</option>
             <option value="admin">Admins</option>
           </select>
@@ -279,7 +370,6 @@
             <div>
               <label style="display:block; font-size:0.8em; margin-bottom:4px;">Role</label>
               <select id="admin-create-role" class="auth-select compact-input">
-                <option value="student">Student</option>
                 <option value="teacher">Teacher</option>
                 <option value="parent">Parent</option>
                 <option value="admin">Admin</option>
@@ -292,57 +382,27 @@
           </div>
         </div>
 
-        <div id="admin-users-list" style="max-height: 400px; overflow-y: auto; padding-right: 8px;"></div>
+        <div id="admin-users-list" style="max-height: 600px; overflow-y: auto; overflow-x: auto; padding-right: 8px;"></div>
       </div>
 
       <div class="panel">
-        <h3>Connect Teacher to Student</h3>
-        <p style="font-size:0.88em; color:#666; margin-bottom:14px;">
-          Enter the emails of the teacher and the student to connect them.
-        </p>
-        <div style="display: grid; grid-template-columns: 1fr 1fr auto; gap: 10px; margin-bottom: 15px; align-items:end;">
-          <div>
-             <label style="display:block; font-size:0.82em; color:#555; margin-bottom:4px;">Teacher Email</label>
-             <input id="admin-teacher-email" class="auth-input compact-input" type="email" placeholder="teacher@example.com">
-          </div>
-          <div>
-             <label style="display:block; font-size:0.82em; color:#555; margin-bottom:4px;">Student Email</label>
-             <input id="admin-student-email" class="auth-input compact-input" type="email" placeholder="student@example.com">
-          </div>
-          <button class="btn btn-success" onclick="adminConnectTeacherStudent()">➕ Connect</button>
-        </div>
-
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-          <h4 style="margin:0; font-size:0.95em; color:#333;">📋 All Teacher Connections</h4>
+          <h3 style="margin:0; font-size:1.1em; color:#333;">👨‍🏫 Teacher ↔ Student Connections</h3>
           <button class="btn btn-info" style="font-size:0.82em; padding:6px 14px;" onclick="adminLoadTeacherConnections()">🔄 Refresh</button>
         </div>
-        <div id="admin-teacher-connections-list" style="max-height: 400px; overflow-y: auto; padding-right: 8px;">
+        <p style="font-size:0.88em; color:#666; margin-bottom:14px;">View all connected teacher-student relationships (read-only)</p>
+        <div id="admin-teacher-connections-list" style="max-height: 400px; overflow-y: auto; overflow-x: auto; padding-right: 8px;">
           <div style="color:#aaa; text-align:center; padding:16px;">Loading connections...</div>
         </div>
       </div>
 
       <div class="panel">
-        <h3>🔗 Student-Parent Connections</h3>
-        <p style="font-size:0.88em; color:#666; margin-bottom:14px;">
-          Enter the Gmail / email of the student and parent to link them. The parent will then see the student's progress.
-        </p>
-        <div style="display: grid; grid-template-columns: 1fr 1fr auto; gap: 10px; margin-bottom: 18px; align-items:end;">
-          <div>
-            <label style="display:block; font-size:0.82em; color:#555; margin-bottom:4px;">Student Email</label>
-            <input id="admin-student-email-connect" class="auth-input compact-input" type="email" placeholder="e.g. student@gmail.com">
-          </div>
-          <div>
-            <label style="display:block; font-size:0.82em; color:#555; margin-bottom:4px;">Parent Email</label>
-            <input id="admin-parent-email" class="auth-input compact-input" type="email" placeholder="e.g. parent@gmail.com">
-          </div>
-          <button class="btn btn-success" id="admin-connect-btn" onclick="adminConnectStudentParent()">➕ Connect</button>
-        </div>
-
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-          <h4 style="margin:0; font-size:0.95em; color:#333;">📋 All Connections</h4>
+          <h3 style="margin:0; font-size:1.1em; color:#333;">🔗 Student ↔ Parent Connections</h3>
           <button class="btn btn-info" style="font-size:0.82em; padding:6px 14px;" onclick="adminLoadConnections()">🔄 Refresh</button>
         </div>
-        <div id="admin-connections-list" style="max-height: 400px; overflow-y: auto; padding-right: 8px;">
+        <p style="font-size:0.88em; color:#666; margin-bottom:14px;">View all connected student-parent relationships (read-only)</p>
+        <div id="admin-connections-list" style="max-height: 400px; overflow-y: auto; overflow-x: auto; padding-right: 8px;">
           <div style="color:#aaa; text-align:center; padding:16px;">Loading connections...</div>
         </div>
       </div>
